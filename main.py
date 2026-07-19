@@ -1,9 +1,21 @@
 from contextlib import asynccontextmanager
-from datetime import date
-from urllib import request
+from datetime import date, datetime
+from dotenv import load_dotenv
+import os
 
 from fastapi import FastAPI, Request
 import asyncpg
+from pydantic import BaseModel
+
+class WorkoutCreate(BaseModel):
+    user_id: int
+    workout_date: date
+    workout_type_id: int
+
+load_dotenv()
+database = os.getenv('DB_NAME')
+user = os.getenv('DB_USER')
+password = os.getenv('DB_PASSWORD')
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -11,9 +23,9 @@ async def lifespan(app: FastAPI):
     app.state.db = await asyncpg.connect(
         host="localhost",
         port=5432,
-        database="workout_tracker",
-        user="karinahanova",
-        password=""
+        database=database,
+        user=user,
+        password=password
     )
     yield
     # это выполнится ПРИ ОСТАНОВКЕ
@@ -22,9 +34,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 @app.get('/api/users')
-async def get_users(request: Request):
-    rows = await request.app.state.db.fetch("SELECT * FROM users")
+async def get_users():
+    rows = await app.state.db.fetch("SELECT * FROM users")
     return [dict(row) for row in rows]
+
+
+@app.get('/api/users/by-telegram/{telegram_id}')
+async def get_user_by_telegram(telegram_id: int):
+    row = await app.state.db.fetchrow('''SELECT id, name FROM users
+                                                where telegram_id = $1''', telegram_id)
+    return dict(row)
 
 @app.get('/api/calendar')
 async def get_user_workouts(month: date,
@@ -71,4 +90,36 @@ async def get_statistics(month: date,
                                         group by wt.name
                                     ''',
                                     user_id, month)
+    return [dict(row) for row in rows]
+
+@app.get('/api/workout-types')
+async def get_workout_types():
+    rows = await app.state.db.fetch('''select id, name
+                                        from workout_type wt ''')
+    return [dict(row) for row in rows]
+
+@app.post ('/api/workouts')
+async def create_workout(workout: WorkoutCreate):
+    await app.state.db.fetch(
+        '''
+        insert into schedule (user_id, workout_date, registration_date, workout_type_id)
+        values ($1, $2,NOW(), $3)
+        ''',
+        workout.user_id,
+        workout.workout_date,
+        workout.workout_type_id
+    )
+    return {
+        "status": "success"
+    }
+
+@app.get('/api/check_workout_date')
+async def get_today_workouts(workout_date: date,
+                             user_id: int):
+    rows = await app.state.db.fetch('''
+                                        select *
+                                        from schedule s 
+                                        where s.user_id  = $1 and s.workout_date = $2
+                                    ''',
+                                    user_id, workout_date)
     return [dict(row) for row in rows]
