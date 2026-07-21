@@ -30,15 +30,32 @@ async def get_workout_types(API_URL):         # делаем запрос к API
             data = await response.json()
     return data
 
+
 @dp.message(Command('workout'))
 async def cmd_workout(message: Message,               # когда придёт сообщение с командой /workout — вызови эту функцию
                       state: FSMContext):                    # message данные из сообщения, state - на каком состоянии бот
     telegram_id = message.from_user.id                       # из данных о присланном сообщении узнаем telegram_id отправителя
 
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{API_URL}/api/users/by-telegram/{telegram_id}") as response: # делаем запрос к API чтобы проверить, есть ли пользователь с таким id в базе
+                if response.status == 400:
+                    await message.answer(
+                        "К сожалению, я не нашёл вас в базе пользователей.\n"
+                        "Пожалуйста, обратитесь к администратору."
+                    )
+                    return
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"{API_URL}/api/users/by-telegram/{telegram_id}") as response: # делаем запрос к API чтобы проверить, есть ли пользователь с таким id в базе
-            data = await response.json()
+
+                response.raise_for_status()  # если 500, 403 и т.п.
+                data = await response.json()
+
+    except aiohttp.ClientError as e:
+        print(f"Ошибка обращения к API: {e}")
+        await message.answer(
+            "Сервис сейчас временно недоступен. Попробуйте позже."
+        )
+        return
 
     await state.update_data(user_name=data['name'],
                             user_id=data['id'])
@@ -110,9 +127,15 @@ async def cmd_anoter_date(message: Message, state: FSMContext) -> None:
     user_name = data['user_name']
 
     user_answer = message.text
-
-    workout_anoter_day_date = datetime.strptime(user_answer, "%d.%m.%Y").date()  # тут подумать над форматом даты. сейчас храню в формате date. но что если пользователи будут в разных часовых поясях?
-
+    try:
+        workout_anoter_day_date = datetime.strptime(user_answer, "%d.%m.%Y").date()  # тут подумать над форматом даты
+    except ValueError as e:
+        print(f"Ошибка ввода формата даты, пользователь ввел {user_answer}: {e}")
+        await message.answer(
+            "Неверный формат даты.\n"
+            "Введите дату в формате ДД.ММ.ГГГГ, например: 25.07.2026"
+        )
+        return
     list_of_workout_types = await get_workout_types(API_URL)
     await state.update_data(workout_date=workout_anoter_day_date,
                             workout_types=list_of_workout_types)
