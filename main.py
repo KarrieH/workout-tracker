@@ -3,7 +3,7 @@ from datetime import date, datetime
 from dotenv import load_dotenv
 import os
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 import asyncpg
 from pydantic import BaseModel
 
@@ -43,6 +43,8 @@ async def get_users():
 async def get_user_by_telegram(telegram_id: int):
     row = await app.state.db.fetchrow('''SELECT id, name FROM users
                                                 where telegram_id = $1''', telegram_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="User not found")
     return dict(row)
 
 @app.get('/api/calendar')
