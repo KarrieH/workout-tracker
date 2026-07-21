@@ -39,7 +39,7 @@ async def cmd_workout(message: Message,               # когда придёт 
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{API_URL}/api/users/by-telegram/{telegram_id}") as response: # делаем запрос к API чтобы проверить, есть ли пользователь с таким id в базе
-                if response.status == 400:
+                if response.status == 404:
                     await message.answer(
                         "К сожалению, я не нашёл вас в базе пользователей.\n"
                         "Пожалуйста, обратитесь к администратору."
