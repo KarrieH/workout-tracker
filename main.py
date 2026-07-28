@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import os
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 import asyncpg
 from pydantic import BaseModel
 
@@ -16,6 +17,8 @@ load_dotenv()
 database = os.getenv('DB_NAME')
 user = os.getenv('DB_USER')
 password = os.getenv('DB_PASSWORD')
+
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,8 +34,19 @@ async def lifespan(app: FastAPI):
     # это выполнится ПРИ ОСТАНОВКЕ
     await app.state.db.close()
 
+@app.exception_handler(asyncpg.exceptions.PostgresError)
+async def postgres_error_handler(request: Request, exc: asyncpg.exceptions.PostgresError):
+    return JSONResponse(
+        status_code=500,
+        content=
+        {
+            "error": type(exc).__name__,  # имя класса ошибки, например "UniqueViolationError"
+            "message": f"Сервис временно недоступен. Пожалуйста, попробуйте позже."
+        },
+    )
 
 app = FastAPI(lifespan=lifespan)
+
 @app.get('/api/users')
 async def get_users():
     rows = await app.state.db.fetch("SELECT * FROM users")
@@ -57,6 +71,7 @@ async def get_user_workouts(month: date,
                                         where user_id = $1 
                                             and date_trunc('month', workout_date ) = date_trunc('month', $2::date)''',
                                     user_id, month)
+
     return [dict(row) for row in rows]
 
 @app.get('/api/progress')
@@ -76,6 +91,7 @@ async def get_progress(month: date,
                                             and date_trunc('month', s.workout_date)  = date_trunc('month', $2::date)
                                         group by s.user_id ''',
                                     user_id,  month)
+
     return [dict(row) for row in rows]
 
 @app.get('/api/statistics')
@@ -92,12 +108,15 @@ async def get_statistics(month: date,
                                         group by wt.name
                                     ''',
                                     user_id, month)
+
+
     return [dict(row) for row in rows]
 
 @app.get('/api/workout-types')
 async def get_workout_types():
     rows = await app.state.db.fetch('''select id, name
                                         from workout_type wt ''')
+
     return [dict(row) for row in rows]
 
 @app.post ('/api/workouts')
@@ -124,4 +143,5 @@ async def get_today_workouts(workout_date: date,
                                         where s.user_id  = $1 and s.workout_date = $2
                                     ''',
                                     user_id, workout_date)
+
     return [dict(row) for row in rows]
