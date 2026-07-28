@@ -34,6 +34,10 @@ async def lifespan(app: FastAPI):
     # это выполнится ПРИ ОСТАНОВКЕ
     await app.state.db.close()
 
+
+
+app = FastAPI(lifespan=lifespan)
+
 @app.exception_handler(asyncpg.exceptions.PostgresError)
 async def postgres_error_handler(request: Request, exc: asyncpg.exceptions.PostgresError):
     return JSONResponse(
@@ -44,8 +48,6 @@ async def postgres_error_handler(request: Request, exc: asyncpg.exceptions.Postg
             "message": f"Сервис временно недоступен. Пожалуйста, попробуйте позже."
         },
     )
-
-app = FastAPI(lifespan=lifespan)
 
 @app.get('/api/users')
 async def get_users():
