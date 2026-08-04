@@ -17,6 +17,7 @@ load_dotenv()
 database = os.getenv('DB_NAME')
 user = os.getenv('DB_USER')
 password = os.getenv('DB_PASSWORD')
+host = os.getenv('DB_HOST')
 
 
 
@@ -24,7 +25,7 @@ password = os.getenv('DB_PASSWORD')
 async def lifespan(app: FastAPI):
     # это выполнится ПРИ СТАРТЕ
     app.state.db = await asyncpg.connect(
-        host="localhost",
+        host=host,
         port=5432,
         database=database,
         user=user,
